@@ -13,8 +13,10 @@ var maxMemory int64 = 1024 * 1024 * 10 // 10 MB
 func main() {
 	r := mux.NewRouter()
 	r.HandleFunc("/", rootHandler).Methods("GET")
+	r.HandleFunc("/upload", demoHandler).Methods("GET")
+	// API Routes
 	r.HandleFunc("/upload", uploadHandler).Methods("POST")
-	r.HandleFunc("/demo", demoHandler)
+	r.HandleFunc("/view/{fileHash}", viewFileHandler).Methods("GET")
 	fmt.Println("Server started at http://localhost:8080")
 	http.ListenAndServe(":8080", r)
 }

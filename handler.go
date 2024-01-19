@@ -4,7 +4,10 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"os"
 )
+
+var cipherKey = []byte("63d2c76bcaad9fcb757f57458d7c6384")
 
 // display the api documentation
 func rootHandler(w http.ResponseWriter, r *http.Request) {
@@ -58,7 +61,7 @@ func uploadHandler(w http.ResponseWriter, r *http.Request) {
 		// Reset the file pointer before saving
 		file.Seek(0, io.SeekStart)
 
-		processedFile, err := convertFile(fileHeader, file, access.FileHash, buffer)
+		processedFile, err := convertFile(fileHeader, file, access.FileHash, buffer, cipherKey)
 		if err != nil {
 			file.Close()
 			http.Error(w, "Failed to process file: "+err.Error(), http.StatusInternalServerError)
@@ -102,3 +105,29 @@ func publicHandler(w http.ResponseWriter, r *http.Request) {
 // func recoveryHandler(w http.ResponseWriter, r *http.Request) {
 
 // }
+
+func viewFileHandler(w http.ResponseWriter, r *http.Request) {
+	// Extract file hash from the URL
+	fileHash := r.URL.Path[len("/view/"):]
+
+	// Get the path to the encrypted file using the fileHash
+	// For this example, we'll assume the file path is "./uploads/" + fileHash
+	// In a real application, you might look up a database or a map
+	encryptedFilePath := "./uploads/" + fileHash
+	decryptedFilePath := "./temp/decrypted_" + fileHash // Temporary path for decrypted file
+
+	// Define your AES key
+	key := cipherKey // Replace with your key
+
+	// Decrypt the file
+	if err := decryptFileWithGCM(encryptedFilePath, decryptedFilePath, key); err != nil {
+		http.Error(w, "Failed to decrypt file: "+err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	// Stream the decrypted file
+	http.ServeFile(w, r, decryptedFilePath)
+
+	// Optionally delete the temporary decrypted file after serving
+	os.Remove(decryptedFilePath)
+}

@@ -1,0 +1,32 @@
+version: '3.8'
+
+services:
+  app:
+    build: .
+    restart: always
+    depends_on:
+      - db
+    env_file:
+      - .env
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.fileserver-solemnity.rule=Host(`file.solemnity.icu`)"
+    networks:
+      - default
+
+  db:
+    image: postgres
+    restart: always
+    env_file:
+      - .db.env
+    volumes:
+      - db-data:/var/lib/postgresql/data
+      - ./migrations/001_initial_schema.up.sql:/docker-entrypoint-initdb.d/schema.sql
+
+volumes:
+  db-data:
+
+networks:
+  default:
+    external: true
+    name: proxy_default

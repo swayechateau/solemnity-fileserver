@@ -58,11 +58,13 @@ func convertFile(fileHeader *multipart.FileHeader, file multipart.File, hash str
 	if err != nil {
 		return f, err
 	}
+	dir, _ := os.Getwd()
 	f.Name = fileHeader.Filename
 	f.Extension = filepath.Ext(fileHeader.Filename)
 	f.MimeType = http.DetectContentType(buffer)
 	f.Hash = hash
-
+	f.Path = dir + "/uploads"
+	f.FullPath = "/" + f.Path + f.Hash + f.Extension
 	// Reset file read pointer
 	_, err = file.Seek(0, io.SeekStart)
 	if err != nil {
@@ -70,9 +72,7 @@ func convertFile(fileHeader *multipart.FileHeader, file multipart.File, hash str
 	}
 
 	f.Size = fileHeader.Size
-	f.Path = "./uploads/" + f.Hash + f.Extension
-	f.FullPath, _ = os.Getwd()
-	f.FullPath += "/" + f.Path
+
 	dst, err := os.Create(f.Path)
 	if err != nil {
 		return f, err

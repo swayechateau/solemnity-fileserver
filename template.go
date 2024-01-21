@@ -80,6 +80,29 @@ var uploadForm = `
         function handleFiles(files) {
             // Here you can handle the file list, display thumbnails, or directly upload them using AJAX.
             console.log(files);
+            uploadFiles(files);
+        }
+
+        function uploadFiles(files) {
+            const formData = new FormData();
+
+            for (let i = 0; i < files.length; i++) {
+                formData.append('files', files[i]);
+            }
+
+            fetch('/upload', { // Adjust the URL to your server's endpoint
+                method: 'POST',
+                body: formData
+            })
+            .then(response => response.text())
+            .then(data => {
+                console.log(data);
+                // Handle success (e.g., display a success message)
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                // Handle errors (e.g., display an error message)
+            });
         }
     </script>
 </body>

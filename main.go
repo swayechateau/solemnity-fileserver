@@ -1,46 +1,27 @@
 package main
 
 import (
-	"fmt"
-	"net/http"
-
-	"github.com/gorilla/mux"
+	"github.com/swayedev/way"
 )
 
 var savedFileHashes = make(map[string]bool)
 var maxMemory int64 = 1024 * 1024 * 10 // 10 MB
 
 func main() {
-	r := mux.NewRouter()
-	r.HandleFunc("/", rootHandler).Methods("GET")
-	r.HandleFunc("/upload", uploadHandler).Methods("POST")
-	r.HandleFunc("/demo", demoHandler)
-	fmt.Println("Server started at http://localhost:8080")
-	http.ListenAndServe(":8080", r)
+	app := Config{}
+	app.Get()
+	app.Set()
+
+	way := way.New()
+	if err := way.Db().PgxOpen(); err != nil {
+		panic(err)
+	}
+	defer way.Db().Close()
+
+	way.GET("/", rootHandler)
+	way.GET("/upload", demoHandler)
+	way.POST("/upload", uploadHandler)
+	way.GET("/view/{slug}", viewFileHandler)
+
+	way.Start(":8080")
 }
-
-// Schema::create('accesses', function (Blueprint $table) {
-// 	$table->increments('id');
-// 	$table->string('organisation')->default('global');
-// 	$table->string('owner')->nullable();
-// 	$table->string('type')->nullable();
-// 	$table->boolean('public')->default(true);
-// 	$table->string('slug')->unique();
-// 	$table->string('share_code')->unique();
-// 	$table->string('access_code')->unique();
-// 	$table->unsignedInteger('file_id');
-// 	$table->softDeletes();
-// 	$table->timestamps();
-// });
-
-// Schema::create('files', function (Blueprint $table) {
-// 	$table->increments('id');
-// 	$table->string('name');
-// 	$table->string('path');
-// 	$table->string('full_path');
-// 	$table->integer('size');
-// 	$table->string('type');
-// 	$table->string('extension');
-// 	$table->softDeletes();
-// 	$table->timestamps();
-// });

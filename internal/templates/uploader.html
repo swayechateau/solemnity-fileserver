@@ -30,27 +30,16 @@
 
 <body>
     <div class="file-details">
-        <form enctype="multipart/form-data" action="upload" method="post">
-            <label for="">Organisation</label>
-            <input type="text" name="organisation" placeholder="organisation">
-            <label for="">Owner</label>
-            <input type="text" name="owner" placeholder="owner">
-            <label for="">Type</label>
-            <input type="text" name="type" placeholder="type">
+        <form enctype="multipart/form-data" action="http://localhost:8080/upload" method="post">
             <label for="">Public</label>
             <select name="public" id="">
-                <option value="1">Yes</option>
-                <option value="0">No</option>
+                <option value="true">Yes</option>
+                <option value="false">No</option>
             </select>
-            <label for="">Date</label>
-            <input type="date" name="date" placeholder="date">
-            <input type="file" name="media[]" accept="*" multiple>
-            <input type="text" name="multi" value="true" hidden>
+            <input type="file" name="media" accept="*" multiple>
             <button type="submit">Upload</button>
         </form>
     </div>
-
-
 </body>
 
 </html>

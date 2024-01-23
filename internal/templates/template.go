@@ -1,6 +1,6 @@
-package main
+package templates
 
-var uploadForm = `
+var UploadForm = `
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -82,14 +82,14 @@ var uploadForm = `
             console.log(files);
             uploadFiles(files);
         }
-
+    
         function uploadFiles(files) {
             const formData = new FormData();
-
+    
             for (let i = 0; i < files.length; i++) {
                 formData.append('files', files[i]);
             }
-
+    
             fetch('/upload', { // Adjust the URL to your server's endpoint
                 method: 'POST',
                 body: formData
@@ -108,7 +108,7 @@ var uploadForm = `
 </body>
 </html>
 `
-var documentation = `
+var Documentation = `
 <html>
 
 <head>

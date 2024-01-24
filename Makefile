@@ -11,7 +11,7 @@ up_build: build
 	@echo "Stopping docker images (if running...)"
 	docker compose down
 	@echo "Building (when required) and starting docker images..."
-	docker-compose up --build -d
+	docker compose up --build -d
 	rm -f ${BINARY}
 	@echo "Docker images built and started!"
 

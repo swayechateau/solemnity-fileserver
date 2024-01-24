@@ -14,8 +14,9 @@ import (
 )
 
 type File struct {
-	Id           [16]byte
-	Organization string
+	Id           [16]byte  `db:"Id"`
+	Organization string    `db:"Organization"`
+	IsEncrypted  bool      `db:"IsEncrypted"`
 	Name         string    `db:"FileName"`
 	Extension    string    `db:"FileExtension"`
 	MimeType     string    `db:"FileType"`
@@ -29,7 +30,7 @@ type File struct {
 
 func (f *File) Get(w *way.Context) error {
 	ctx := w.Request.Context()
-	return w.PgxQueryRow(ctx, "SELECT Id, Organization, FileName, FileExtension, FileType, FileSize, FileHash, FilePath, FileFullPath, CreatedAt, UpdatedAt FROM Files WHERE Id=$1", f.Id).Scan(&f.Id, &f.Organization, &f.Name, &f.Extension, &f.MimeType, &f.Size, &f.Hash, &f.Path, &f.FullPath, &f.CreatedAt, &f.UpdatedAt)
+	return w.PgxQueryRow(ctx, "SELECT Id, Organization, IsEncrypted, FileName, FileExtension, FileType, FileSize, FileHash, FilePath, FileFullPath, CreatedAt, UpdatedAt FROM Files WHERE Id=$1", f.Id).Scan(&f.Id, &f.Organization, &f.IsEncrypted, &f.Name, &f.Extension, &f.MimeType, &f.Size, &f.Hash, &f.Path, &f.FullPath, &f.CreatedAt, &f.UpdatedAt)
 }
 
 func (f *File) Create(fileHeader *multipart.FileHeader, file multipart.File, hash string, organization string) error {
@@ -41,6 +42,7 @@ func (f *File) Create(fileHeader *multipart.FileHeader, file multipart.File, has
 	dir, _ := os.Getwd()
 	f.Id = uuid.New()
 	f.Name = fileHeader.Filename
+	f.IsEncrypted = false
 	f.Organization = checkOrganization(organization)
 	f.Extension = filepath.Ext(fileHeader.Filename)
 	f.MimeType = http.DetectContentType(buffer)
@@ -68,17 +70,21 @@ func (f *File) Create(fileHeader *multipart.FileHeader, file multipart.File, has
 	return nil
 }
 
-func (f *File) CreateAndEncrypt(fileHeader *multipart.FileHeader, file multipart.File, hash string, buffer []byte, key []byte) error {
+func (f *File) CreateAndEncrypt(fileHeader *multipart.FileHeader, file multipart.File, hash string, organization string, key []byte) error {
+	buffer := make([]byte, 512)
 	_, err := file.Read(buffer)
 	if err != nil {
 		return err
 	}
 	dir, _ := os.Getwd()
+	f.Id = uuid.New()
 	f.Name = fileHeader.Filename
+	f.IsEncrypted = true
+	f.Organization = checkOrganization(organization)
 	f.Extension = filepath.Ext(fileHeader.Filename)
 	f.MimeType = http.DetectContentType(buffer)
 	f.Hash = hash
-	f.Path = dir + "/uploads"
+	f.Path = dir + "/uploads/" + f.Organization + "/"
 	f.FullPath = "/" + f.Path + f.Hash + f.Extension
 	// Reset file read pointer
 	_, err = file.Seek(0, io.SeekStart)
@@ -88,7 +94,7 @@ func (f *File) CreateAndEncrypt(fileHeader *multipart.FileHeader, file multipart
 
 	f.Size = fileHeader.Size
 
-	dst, err := os.Create(f.Path)
+	dst, err := os.Create(f.FullPath)
 	if err != nil {
 		return err
 	}
@@ -101,14 +107,37 @@ func (f *File) CreateAndEncrypt(fileHeader *multipart.FileHeader, file multipart
 	return nil
 }
 
+func (f *File) Serve(w http.ResponseWriter, r *http.Request, key []byte) {
+	if f.IsEncrypted {
+		f.DecryptAndServe(w, r, key)
+		return
+	}
+	http.ServeFile(w, r, f.FullPath)
+}
+
+func (f *File) DecryptAndServe(w http.ResponseWriter, r *http.Request, key []byte) {
+	// Temporary path for decrypted file
+	decryptedFilePath := "./uploads/temp/decrypted_" + f.Hash + f.Extension
+	// Decrypt the file
+	if err := fcrypt.DecryptWithGCM(f.FullPath, decryptedFilePath, key); err != nil {
+		http.Error(w, "Failed to decrypt file: "+err.Error(), http.StatusInternalServerError)
+		os.Remove(decryptedFilePath)
+		return
+	}
+	// Stream the decrypted file
+	http.ServeFile(w, r, decryptedFilePath)
+	// Optionally delete the temporary decrypted file after serving
+	os.Remove(decryptedFilePath)
+}
+
 func (f *File) Save(w *way.Context) error {
 	ctx := w.Request.Context()
-	return w.PgxExecNoResult(ctx, "INSERT INTO Files (Id, Organization, FileName, FileExtension, FileType, FileSize, FileHash, FilePath, FileFullPath) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)", f.Id, f.Organization, f.Name, f.Extension, f.MimeType, f.Size, f.Hash, f.Path, f.FullPath)
+	return w.PgxExecNoResult(ctx, "INSERT INTO Files (Id, Organization, IsEncrypted, FileName, FileExtension, FileType, FileSize, FileHash, FilePath, FileFullPath) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)", f.Id, f.Organization, f.IsEncrypted, f.Name, f.Extension, f.MimeType, f.Size, f.Hash, f.Path, f.FullPath)
 }
 
 func (f *File) Update(w *way.Context) error {
 	ctx := w.Request.Context()
-	return w.PgxExecNoResult(ctx, "UPDATE Files SET Organization = $1, FileName = $2, FileExtension = $3, FileType = $4, FileSize = $5, FileHash = $6, FilePath = $7, FileFullPath = $8 WHERE Id=$9", f.Organization, f.Name, f.Extension, f.MimeType, f.Size, f.Hash, f.Path, f.FullPath, f.Id)
+	return w.PgxExecNoResult(ctx, "UPDATE Files SET Organization = $1, FileName = $2, FileExtension = $3, FileType = $4, FileSize = $5, FileHash = $6, FilePath = $7, FileFullPath = $8 IsEncrypted =$9 WHERE Id=$10", f.Organization, f.Name, f.Extension, f.MimeType, f.Size, f.Hash, f.Path, f.FullPath, f.IsEncrypted, f.Id)
 }
 
 func StoreFile(fileHeader *multipart.FileHeader, file multipart.File, hash string, organization string) (File, error) {
@@ -119,9 +148,9 @@ func StoreFile(fileHeader *multipart.FileHeader, file multipart.File, hash strin
 	return f, nil
 }
 
-func StoreAndEncryptFile(fileHeader *multipart.FileHeader, file multipart.File, hash string, buffer []byte, key []byte) (File, error) {
+func StoreAndEncryptFile(fileHeader *multipart.FileHeader, file multipart.File, hash string, organization string, key []byte) (File, error) {
 	f := File{}
-	if err := f.CreateAndEncrypt(fileHeader, file, hash, buffer, key); err != nil {
+	if err := f.CreateAndEncrypt(fileHeader, file, hash, organization, key); err != nil {
 		return f, err
 	}
 	return f, nil
@@ -141,7 +170,7 @@ func GetFileId(w *way.Context, organization string, hash string) ([16]byte, erro
 func GetFileById(w *way.Context, id [16]byte) (File, error) {
 	f := File{}
 
-	err := w.PgxQueryRow(w.Request.Context(), `SELECT Id, Organization, FileName, FileExtension, FileType, FileSize, FileHash, FilePath, FileFullPath, CreatedAt, UpdatedAt FROM Files WHERE FileID=$2;`, id).Scan(&f.Id, &f.Organization, &f.Name, &f.Extension, &f.MimeType, &f.Size, &f.Hash, &f.Path, &f.FullPath, &f.CreatedAt, &f.UpdatedAt)
+	err := w.PgxQueryRow(w.Request.Context(), `SELECT Id, Organization, FileName, FileExtension, FileType, FileSize, FileHash, FilePath, FileFullPath, CreatedAt, UpdatedAt FROM Files WHERE Id=$1;`, id).Scan(&f.Id, &f.Organization, &f.Name, &f.Extension, &f.MimeType, &f.Size, &f.Hash, &f.Path, &f.FullPath, &f.CreatedAt, &f.UpdatedAt)
 	if err != nil {
 		return f, err
 	}

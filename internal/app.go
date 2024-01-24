@@ -17,8 +17,9 @@ func App() {
 
 	way.GET("/", RootHandler)
 	way.GET("/upload", DemoHandler)
-	way.POST("/upload", UploadHandler)
-	way.GET("/view/{slug}", ViewFileHandler)
+	way.POST("/upload", UploadWithOptionalEncryptionHandler)
+	way.GET("/view/{slug}", ViewHandler)
+	way.GET("/public", PublicHandler)
 
 	way.Start(":8080")
 }

@@ -4,6 +4,8 @@ services:
   app:
     build: .
     restart: always
+    volumes:
+      - ./uploads:/uploads
     depends_on:
       - db
     env_file:

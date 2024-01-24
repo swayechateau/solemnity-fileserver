@@ -5,9 +5,9 @@ import (
 )
 
 func App() {
-	app := Config{}
-	app.Get()
-	app.Set()
+	// app := Config{}
+	// app.Get()
+	// app.Set()
 
 	way := way.New()
 	if err := way.Db().PgxOpen(); err != nil {

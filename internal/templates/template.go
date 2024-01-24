@@ -3,109 +3,48 @@ package templates
 var UploadForm = `
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Bootstrap Drag and Drop File Upload</title>
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <title>Upload Media</title>
     <style>
-        .drag-area {
-            border: 2px dashed #ddd;
-            padding: 30px;
-            text-align: center;
-            margin: 10px;
-        }
-        .drag-area.highlight {
-            border-color: #28a745;
-            background-color: rgba(40, 167, 69, 0.2);
-        }
+    body {
+        background-repeat: no-repeat;
+        background: #2980b9;
+        /* fallback for old browsers */
+        background: -webkit-linear-gradient(to right, #2c3e50, #2980b9);
+        /* Chrome 10-25, Safari 5.1-6 */
+        background: linear-gradient(to right, #2c3e50, #2980b9);
+        /* W3C, IE 10+/ Edge, Firefox 16+, Chrome 26+, Opera 12+, Safari 7+ */
+        color: #fff;
+        height: 100%;
+        width: 100%;
+    }
+
+    .file-details {
+        background: rgba(255, 255, 255, .4);
+        padding: 25px;
+        border-radius: 20px;
+    }
+
     </style>
 </head>
+
 <body>
-    <div class="container py-5">
-        <h2 class="text-center mb-4">Bootstrap File Upload</h2>
-        <form id="fileUploadForm" action="http://localhost:8080/upload" method="post" enctype="multipart/form-data">
-            <div class="drag-area highlight" id="dragArea">
-                <p class="mb-2">Drag and drop files here</p>
-                <button type="button" class="btn btn-primary" id="buttonSelectFiles">Or select files</button>
-                <input type="file" multiple hidden id="fileInput">
-            </div>
+    <div class="file-details">
+        <form enctype="multipart/form-data" action="/upload" method="post">
+            <label for="">Public</label>
+            <select name="public" id="">
+                <option value="true">Yes</option>
+                <option value="false">No</option>
+            </select>
+            <input type="file" name="media" accept="*" multiple>
+            <button type="submit">Upload</button>
         </form>
     </div>
-
-    <script>
-        const dragArea = document.getElementById('dragArea');
-        const fileInput = document.getElementById('fileInput');
-        const buttonSelectFiles = document.getElementById('buttonSelectFiles');
-
-        buttonSelectFiles.addEventListener('click', () => fileInput.click());
-
-        fileInput.addEventListener('change', (event) => {
-            handleFiles(event.target.files);
-        });
-
-        ['dragenter', 'dragover', 'dragleave', 'drop'].forEach(eventName => {
-            dragArea.addEventListener(eventName, preventDefaults, false);
-        });
-
-        function preventDefaults(e) {
-            e.preventDefault();
-            e.stopPropagation();
-        }
-
-        ['dragenter', 'dragover'].forEach(eventName => {
-            dragArea.addEventListener(eventName, highlight, false);
-        });
-
-        ['dragleave', 'drop'].forEach(eventName => {
-            dragArea.addEventListener(eventName, unhighlight, false);
-        });
-
-        function highlight() {
-            dragArea.classList.add('highlight');
-        }
-
-        function unhighlight() {
-            dragArea.classList.remove('highlight');
-        }
-
-        dragArea.addEventListener('drop', handleDrop, false);
-
-        function handleDrop(e) {
-            const dt = e.dataTransfer;
-            const files = dt.files;
-            handleFiles(files);
-        }
-
-        function handleFiles(files) {
-            // Here you can handle the file list, display thumbnails, or directly upload them using AJAX.
-            console.log(files);
-            uploadFiles(files);
-        }
-    
-        function uploadFiles(files) {
-            const formData = new FormData();
-    
-            for (let i = 0; i < files.length; i++) {
-                formData.append('files', files[i]);
-            }
-    
-            fetch('/upload', { // Adjust the URL to your server's endpoint
-                method: 'POST',
-                body: formData
-            })
-            .then(response => response.text())
-            .then(data => {
-                console.log(data);
-                // Handle success (e.g., display a success message)
-            })
-            .catch(error => {
-                console.error('Error:', error);
-                // Handle errors (e.g., display an error message)
-            });
-        }
-    </script>
 </body>
+
 </html>
 `
 var Documentation = `
@@ -119,7 +58,7 @@ var Documentation = `
     <title>File Server API</title>
 
     <!-- Flatdoc -->
-    <script src="http://ajax.googleapis.com/ajax/libs/jquery/1.9.1/jquery.min.js"></script>
+    <script src="https://ajax.googleapis.com/ajax/libs/jquery/1.9.1/jquery.min.js"></script>
     <script src='https://cdn.rawgit.com/rstacruz/flatdoc/v0.9.0/legacy.js'></script>
     <script src='https://cdn.rawgit.com/rstacruz/flatdoc/v0.9.0/flatdoc.js'></script>
 

@@ -28,14 +28,6 @@ func RootHandler(c *way.Context) {
 func DemoHandler(c *way.Context) {
 	c.HTML(200, templates.UploadForm)
 }
-func UploadWithOptionalEncryptionHandler(c *way.Context) {
-	switch c.Request.FormValue("encrypt") {
-	case "true":
-		UploadAndEncryptHandler(c)
-	default:
-		UploadHandler(c)
-	}
-}
 
 // upload file/s
 func UploadHandler(c *way.Context) {
@@ -100,7 +92,15 @@ func UploadHandler(c *way.Context) {
 		if err == pgx.ErrNoRows {
 			// Reset the file pointer before saving
 			file.Seek(0, io.SeekStart)
-			f, err := models.StoreFile(fileHeader, file, fileHash, organization)
+			var f models.File
+			var err error
+			switch c.Request.FormValue("encrypt") {
+			case "true":
+				f, err = models.StoreAndEncryptFile(fileHeader, file, fileHash, organization, cipherKey)
+			default:
+				f, err = models.StoreFile(fileHeader, file, fileHash, organization)
+			}
+
 			if err != nil {
 				log.Printf("Error:%s", err)
 				file.Close()
@@ -118,126 +118,35 @@ func UploadHandler(c *way.Context) {
 			}
 		}
 
-		access := models.FileAccess{
-			FileId:       fileId,
-			Organization: organization,
-			Owner:        owner,
-			IsPublic:     isPublic,
+		// check if access exists
+		access, err := models.GetFileAccess(c.GetDB().Pgx(), organization, owner, fileId)
+		if err != nil && err != pgx.ErrNoRows {
+			log.Printf("Error:%s", err)
+			http.Error(c.Response, "Failed find if access exists: "+err.Error(), http.StatusInternalServerError)
+			return
 		}
 
-		access.GenerateId()
-		access.GenerateSlug()
-		access.GenerateShareCode()
-		access.GenerateAccessCode()
+		if err == pgx.ErrNoRows {
+			access.FileId = fileId
+			access.Organization = organization
+			access.Owner = owner
+			access.IsPublic = isPublic
+			access.GenerateId()
+			access.GenerateSlug()
+			access.GenerateShareCode()
+			access.GenerateAccessCode()
 
-		if err := access.Create(c.GetDB().Pgx()); err != nil {
-			log.Printf("Error:%s", err)
-			http.Error(c.Response, "Failed to save file access to database: "+err.Error(), http.StatusInternalServerError)
-			return
+			if err := access.Create(c.GetDB().Pgx()); err != nil {
+				log.Printf("Error:%s", err)
+				http.Error(c.Response, "Failed to save file access to database: "+err.Error(), http.StatusInternalServerError)
+				return
+			}
 		}
 
 		accessList = append(accessList, access)
 	}
 
 	c.JSON(200, accessList)
-}
-
-func UploadAndEncryptHandler(c *way.Context) {
-	if err := c.Request.ParseMultipartForm(maxMemory); err != nil {
-		http.Error(c.Response, "Failed to parse multipart form: "+err.Error(), http.StatusInternalServerError)
-		return
-	}
-
-	// Are there any files?
-	files := c.Request.MultipartForm.File["media"]
-	if len(files) == 0 {
-		http.Error(c.Response, "No files uploaded", http.StatusBadRequest)
-		return
-	}
-
-	// Get the owner, isPublic, and organization from the form
-	owner := c.Request.FormValue("owner")
-	if owner == "" {
-		// was anonymous
-		owner = "public" // default to public
-	}
-
-	organization := c.Request.FormValue("organization")
-	if organization == "" {
-		organization = "global"
-	}
-
-	isPublic := true
-	if c.Request.FormValue("public") != "" {
-		isPublic, _ = strconv.ParseBool(c.Request.FormValue("public"))
-	}
-
-	// Process each file
-	for _, fileHeader := range files {
-		file, err := fileHeader.Open()
-		if err != nil {
-			http.Error(c.Response, "Failed to open file: "+err.Error(), http.StatusInternalServerError)
-			return
-		}
-
-		hash, err := fcrypt.HashWithBlake2(file)
-		if err != nil {
-			file.Close()
-			http.Error(c.Response, "Failed to hash file: "+err.Error(), http.StatusInternalServerError)
-			return
-		}
-		fileHash := fmt.Sprintf("%x", hash)
-
-		// Check if the files already exist
-		fileId, err := models.GetFileId(c.GetDB().Pgx(), organization, fileHash)
-
-		if err != nil && err != pgx.ErrNoRows {
-			file.Close()
-			http.Error(c.Response, "Failed to get file id: "+err.Error(), http.StatusInternalServerError)
-			return
-		}
-
-		if err == pgx.ErrNoRows {
-			// Reset the file pointer before saving
-			file.Seek(0, io.SeekStart)
-			f, err := models.StoreAndEncryptFile(fileHeader, file, fileHash, organization, cipherKey)
-			if err != nil {
-				file.Close()
-				http.Error(c.Response, "Failed to process file: "+err.Error(), http.StatusInternalServerError)
-				return
-			}
-			file.Close()
-			fileId = f.Id
-			// save file to db
-			_, err = c.PgxExec(c.Request.Context(), "INSERT INTO Files (Id, Organization, FileName, FileExtension, FileType, FileSize, FileHash, FilePath, FileFullPath) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)", f.Id, f.Organization, f.Name, f.Extension, f.MimeType, f.Size, f.Hash, f.Path, f.FullPath)
-			if err != nil {
-				http.Error(c.Response, "Failed to save file to database: "+err.Error(), http.StatusInternalServerError)
-				return
-			}
-		}
-
-		access := models.FileAccess{
-			FileId:       fileId,
-			Organization: organization,
-			Owner:        owner,
-			IsPublic:     isPublic,
-		}
-
-		access.GenerateId()
-		access.GenerateSlug()
-		access.GenerateShareCode()
-		access.GenerateAccessCode()
-
-		if access.Create(c.GetDB().Pgx()) != nil {
-			http.Error(c.Response, "Failed to save file access to database: "+err.Error(), http.StatusInternalServerError)
-			return
-		}
-
-		fmt.Fprintf(c.Response, "File %s uploaded successfully by %s with MIME type=%s and size=%d bytes. Hash: %s\n", fileHeader.Filename, access.Owner, fileHeader.Header.Get("Content-Type"), fileHeader.Size, fileHash)
-	}
-
-	fmt.Fprintf(c.Response, "Upload successful")
-
 }
 
 // view or download file

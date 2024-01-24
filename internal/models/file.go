@@ -105,6 +105,8 @@ func (f *File) CreateAndEncrypt(fileHeader *multipart.FileHeader, file multipart
 }
 
 func (f *File) Serve(w http.ResponseWriter, r *http.Request, key []byte) {
+	w.Header().Set("Content-Disposition", "inline; filename="+f.Name)
+	w.Header().Set("Content-Type", f.MimeType)
 	if f.IsEncrypted {
 		f.DecryptAndServe(w, r, key)
 		return

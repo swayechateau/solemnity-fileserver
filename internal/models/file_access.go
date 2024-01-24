@@ -114,3 +114,14 @@ func GetPublicAccessFile(c *pgx.Conn, organization string) []PublicFileAccess {
 
 	return accessList
 }
+
+func GetFileAccess(c *pgx.Conn, organization string, owner string, fileId [16]byte) (FileAccess, error) {
+	f := FileAccess{}
+	ctx := context.Background()
+	err := c.QueryRow(ctx, `SELECT Id, FileId, Organization, AccessOwner, IsPublic, Uri, ShareCode, AccessCode, CreatedAt, UpdatedAt FROM FileAccess WHERE Organization=$1 AND AccessOwner=$2 AND FileId=$3;`, checkOrganization(organization), owner, fileId).Scan(&f.Id, &f.FileId, &f.Organization, &f.AccessCode, &f.IsPublic, &f.Slug, &f.ShareCode, &f.AccessCode, &f.CreatedAt, &f.UpdatedAt)
+	if err != nil {
+		return f, err
+	}
+
+	return f, nil
+}

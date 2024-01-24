@@ -39,7 +39,7 @@ func (f *File) Create(fileHeader *multipart.FileHeader, file multipart.File, has
 	if err != nil {
 		return err
 	}
-	dir, _ := os.Getwd()
+	// dir, _ := os.Getwd()
 	f.Id = uuid.New()
 	f.Name = fileHeader.Filename
 	f.IsEncrypted = false
@@ -47,8 +47,8 @@ func (f *File) Create(fileHeader *multipart.FileHeader, file multipart.File, has
 	f.Extension = filepath.Ext(fileHeader.Filename)
 	f.MimeType = http.DetectContentType(buffer)
 	f.Hash = hash
-	f.Path = dir + "/uploads/" + f.Organization + "/"
-	f.FullPath = "/" + f.Path + f.Hash + f.Extension
+	f.Path = "./uploads/" + f.Organization + "/"
+	f.FullPath = f.Path + f.Hash + f.Extension
 	// Reset file read pointer
 	_, err = file.Seek(0, io.SeekStart)
 	if err != nil {

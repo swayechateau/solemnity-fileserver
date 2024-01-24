@@ -1,14 +1,12 @@
 package internal
 
 import (
+	"os"
+
 	"github.com/swayedev/way"
 )
 
 func App() {
-	// app := Config{}
-	// app.Get()
-	// app.Set()
-
 	way := way.New()
 	if err := way.Db().PgxOpen(); err != nil {
 		panic(err)
@@ -21,5 +19,9 @@ func App() {
 	way.GET("/view/{slug}", ViewHandler)
 	way.GET("/public", PublicHandler)
 
-	way.Start(":8080")
+	port := os.Getenv("PORT")
+	if port == "" {
+		port = "8080"
+	}
+	way.Start(":" + port)
 }

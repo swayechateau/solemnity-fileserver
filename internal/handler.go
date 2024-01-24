@@ -6,10 +6,12 @@ import (
 	"fileserver/internal/templates"
 	"fmt"
 	"io"
+	"log"
 	"net/http"
 	"strconv"
 
 	"github.com/jackc/pgx/v5"
+
 	"github.com/swayedev/way"
 )
 
@@ -38,6 +40,7 @@ func UploadWithOptionalEncryptionHandler(c *way.Context) {
 // upload file/s
 func UploadHandler(c *way.Context) {
 	if err := c.Request.ParseMultipartForm(maxMemory); err != nil {
+		log.Printf("Error:%s", err)
 		http.Error(c.Response, "Failed to parse multipart form: "+err.Error(), http.StatusInternalServerError)
 		return
 	}
@@ -70,12 +73,14 @@ func UploadHandler(c *way.Context) {
 	for _, fileHeader := range files {
 		file, err := fileHeader.Open()
 		if err != nil {
+			log.Printf("Error:%s", err)
 			http.Error(c.Response, "Failed to open file: "+err.Error(), http.StatusInternalServerError)
 			return
 		}
 
 		hash, err := fcrypt.HashWithBlake2(file)
 		if err != nil {
+			log.Printf("Error:%s", err)
 			file.Close()
 			http.Error(c.Response, "Failed to hash file: "+err.Error(), http.StatusInternalServerError)
 			return
@@ -83,9 +88,10 @@ func UploadHandler(c *way.Context) {
 		fileHash := fmt.Sprintf("%x", hash)
 
 		// Check if the files already exist
-		fileId, err := models.GetFileId(c, organization, fileHash)
+		fileId, err := models.GetFileId(c.GetDB().Pgx(), organization, fileHash)
 
 		if err != nil && err != pgx.ErrNoRows {
+			log.Printf("Error:%s", err)
 			file.Close()
 			http.Error(c.Response, "Failed to get file id: "+err.Error(), http.StatusInternalServerError)
 			return
@@ -96,6 +102,7 @@ func UploadHandler(c *way.Context) {
 			file.Seek(0, io.SeekStart)
 			f, err := models.StoreFile(fileHeader, file, fileHash, organization)
 			if err != nil {
+				log.Printf("Error:%s", err)
 				file.Close()
 				http.Error(c.Response, "Failed to process file: "+err.Error(), http.StatusInternalServerError)
 				return
@@ -105,6 +112,7 @@ func UploadHandler(c *way.Context) {
 			// save file to db
 			_, err = c.PgxExec(c.Request.Context(), "INSERT INTO Files (Id, Organization, FileName, FileExtension, FileType, FileSize, FileHash, FilePath, FileFullPath) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)", f.Id, f.Organization, f.Name, f.Extension, f.MimeType, f.Size, f.Hash, f.Path, f.FullPath)
 			if err != nil {
+				log.Printf("Error:%s", err)
 				http.Error(c.Response, "Failed to save file to database: "+err.Error(), http.StatusInternalServerError)
 				return
 			}
@@ -122,7 +130,8 @@ func UploadHandler(c *way.Context) {
 		access.GenerateShareCode()
 		access.GenerateAccessCode()
 
-		if access.Create(c) != nil {
+		if err := access.Create(c.GetDB().Pgx()); err != nil {
+			log.Printf("Error:%s", err)
 			http.Error(c.Response, "Failed to save file access to database: "+err.Error(), http.StatusInternalServerError)
 			return
 		}
@@ -180,7 +189,7 @@ func UploadAndEncryptHandler(c *way.Context) {
 		fileHash := fmt.Sprintf("%x", hash)
 
 		// Check if the files already exist
-		fileId, err := models.GetFileId(c, organization, fileHash)
+		fileId, err := models.GetFileId(c.GetDB().Pgx(), organization, fileHash)
 
 		if err != nil && err != pgx.ErrNoRows {
 			file.Close()
@@ -219,7 +228,7 @@ func UploadAndEncryptHandler(c *way.Context) {
 		access.GenerateShareCode()
 		access.GenerateAccessCode()
 
-		if access.Create(c) != nil {
+		if access.Create(c.GetDB().Pgx()) != nil {
 			http.Error(c.Response, "Failed to save file access to database: "+err.Error(), http.StatusInternalServerError)
 			return
 		}
@@ -236,14 +245,14 @@ func ViewHandler(c *way.Context) {
 	// find access by slug
 	slug := c.Parms()["slug"]
 	access := models.FileAccess{Slug: slug}
-	if err := access.Get(c); err != nil {
+	if err := access.Get(c.GetDB().Pgx()); err != nil {
 		http.Error(c.Response, "Failed to get file access: "+err.Error(), http.StatusInternalServerError)
 		return
 	}
 
 	// get file by id
 	f := models.File{Id: access.FileId}
-	if err := f.Get(c); err != nil {
+	if err := f.Get(c.GetDB().Pgx()); err != nil {
 		http.Error(c.Response, "Failed to get file: "+err.Error(), http.StatusInternalServerError)
 		return
 	}
@@ -272,5 +281,5 @@ func PublicHandler(c *way.Context) {
 	if organization == "" {
 		organization = "global"
 	}
-	c.JSON(200, models.GetPublicAccessFile(c, organization))
+	c.JSON(200, models.GetPublicAccessFile(c.GetDB().Pgx(), organization))
 }

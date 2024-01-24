@@ -62,7 +62,7 @@ CREATE TABLE IF NOT EXISTS FileAccess (
     Uri TEXT NOT NULL UNIQUE, -- This is the file uri
     ShareCode TEXT NOT NULL, -- This is the file share code
     AccessCode TEXT NOT NULL, -- This is the file access code
-    UNIQUE (Organization, AccessOwner),
+    UNIQUE (Organization, AccessOwner, FileId), -- This is the unique constraint for the file access
     FOREIGN KEY (FileId) REFERENCES Files(Id) ON DELETE CASCADE,
     CreatedAt TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
     UpdatedAt TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP

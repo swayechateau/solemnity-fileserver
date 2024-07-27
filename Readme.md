@@ -14,6 +14,11 @@ The File Server API, only needs a html file input with the name of media for one
 *Current version: [v0.1.0]*
 
 
+![data](/file_mascot.webp)
+Meet data from the solemnity family
+
+**Note** loves to manage files securly
+
 Getting started
 ---------------
 
